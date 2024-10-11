@@ -1,6 +1,7 @@
 use super::*;
 use alloy_rlp::RlpEncodable;
 use serde::{Deserialize, Serialize};
+use ssz::Encode;
 use strum::EnumString;
 use superstruct::superstruct;
 use types::beacon_block_body::KzgCommitments;
@@ -892,6 +893,28 @@ impl From<JsonDepositRequest> for DepositRequest {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, RlpEncodable)]
+pub struct EncodableDepositRequest<'a> {
+    pub pubkey:  &'a [u8],
+    pub withdrawal_credentials: &'a [u8],
+    pub amount: u64,
+    pub signature:  Vec<u8>,
+    pub index: u64,
+}
+
+impl<'a> From<&'a JsonDepositRequest> for EncodableDepositRequest<'a> {
+    fn from(json_deposit: &'a JsonDepositRequest) -> Self {
+        let mut encoded_deposit=Self {
+            pubkey: json_deposit.pubkey.as_serialized(),
+            withdrawal_credentials: json_deposit.withdrawal_credentials.as_bytes(),
+            amount: json_deposit.amount,
+            signature: json_deposit.signature.as_ssz_bytes(),
+            index: json_deposit.index,
+        };
+        encoded_deposit
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonWithdrawalRequest {
@@ -918,5 +941,25 @@ impl From<JsonWithdrawalRequest> for ExecutionLayerWithdrawalRequest {
             validator_pubkey: json_withdrawal_request.validator_public_key,
             amount: json_withdrawal_request.amount,
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, RlpEncodable)]
+#[serde(rename_all = "camelCase")]
+pub struct EncodableWithdrawalRequest<'a>  {
+    pub source_address:  &'a [u8],
+    pub validator_public_key: &'a [u8],
+    #[serde(with = "serde_utils::u64_hex_be")]
+    pub amount: u64,
+}
+
+impl<'a> From<&'a JsonWithdrawalRequest> for EncodableWithdrawalRequest<'a> {
+    fn from(json_withdrawal_request: &'a JsonWithdrawalRequest) -> Self {
+        let mut encoded_withdrawal_request=Self {
+            source_address: json_withdrawal_request.source_address.as_bytes(),
+            validator_public_key:json_withdrawal_request.validator_public_key.as_serialized(),
+            amount:json_withdrawal_request.amount
+        };
+        encoded_withdrawal_request
     }
 }

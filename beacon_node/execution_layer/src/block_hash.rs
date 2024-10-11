@@ -1,14 +1,14 @@
 use crate::{
-    json_structures::{EncodableJsonWithdrawal, JsonWithdrawal},
+    json_structures::{EncodableDepositRequest, EncodableJsonWithdrawal, EncodableWithdrawalRequest, JsonDepositRequest, JsonWithdrawal, JsonWithdrawalRequest},
     keccak::{keccak256, KeccakHasher},
 };
 use alloy_rlp::Encodable;
 use keccak_hash::KECCAK_EMPTY_LIST_RLP;
 use triehash::ordered_trie_root;
 use types::{
-    EncodableExecutionBlockHeader, EthSpec, ExecutionBlockHash, ExecutionBlockHeader,
-    ExecutionPayloadRef, Hash256,
+    deposit, withdrawal, DepositRequest, EncodableExecutionBlockHeader, EthSpec, ExecutionBlockHash, ExecutionBlockHeader, ExecutionPayloadRef, Hash256
 };
+use warp::reply::Json;
 
 /// Calculate the block hash of an execution block.
 ///
@@ -36,6 +36,32 @@ pub fn calculate_execution_block_hash<E: EthSpec>(
         None
     };
 
+
+    let rlp_withdrawal_requests = if let Ok(withdrawal_requests) = payload.withdrawal_requests() {
+        Some(
+            withdrawal_requests
+                .iter()
+                .map(|withdrawal_request| rlp_encode_withdrawal_request(&JsonWithdrawalRequest::from(withdrawal_request.clone())))
+                .collect::<Vec<Vec<u8>>>(), // Collect into Vec<Vec<u8>>
+        )
+    } else {
+        None 
+    };
+
+    let rlp_deposit_requests = if let Ok(deposit_requests) = payload.deposit_requests() {
+        Some(
+            deposit_requests
+                .iter()
+                .map(|deposit_request| rlp_encode_deposit_request(&JsonDepositRequest::from(deposit_request.clone())))
+                .collect::<Vec<Vec<u8>>>(), // Collect into Vec<Vec<u8>>
+        )
+    } else {
+        None 
+    };
+
+    let request_root=rlp_encode_request_root(rlp_deposit_requests.unwrap(),rlp_withdrawal_requests.unwrap());
+    
+
     let rlp_blob_gas_used = payload.blob_gas_used().ok();
     let rlp_excess_blob_gas = payload.excess_blob_gas().ok();
 
@@ -48,6 +74,8 @@ pub fn calculate_execution_block_hash<E: EthSpec>(
         rlp_blob_gas_used,
         rlp_excess_blob_gas,
         parent_beacon_block_root,
+        request_root
+        // Some(KECCAK_EMPTY_LIST_RLP),
     );
 
     // Hash the RLP encoding of the block header.
@@ -65,10 +93,32 @@ pub fn rlp_encode_withdrawal(withdrawal: &JsonWithdrawal) -> Vec<u8> {
     out
 }
 
+/// RLP encode a withdrawal_request.
+pub fn rlp_encode_withdrawal_request(withdrawal_request: &JsonWithdrawalRequest) -> Vec<u8> {
+    let mut out: Vec<u8> = vec![];
+    EncodableWithdrawalRequest::from(withdrawal_request).encode(&mut out);
+    out
+}
+
 /// RLP encode an execution block header.
 pub fn rlp_encode_block_header(header: &ExecutionBlockHeader) -> Vec<u8> {
     let mut out: Vec<u8> = vec![];
     EncodableExecutionBlockHeader::from(header).encode(&mut out);
+    out
+}
+
+/// RLP encode a withdrawal.
+pub fn rlp_encode_deposit_request(deposit: &JsonDepositRequest) -> Vec<u8> {
+    let mut out: Vec<u8> = vec![];
+    EncodableDepositRequest::from(deposit).encode(&mut out);
+    out
+}
+
+pub fn rlp_encode_request_root(rlp_deposit_request:Vec<Vec<u8>>,rlp_withdraw_request:Vec<Vec<u8>>)->Option<keccak_hash::H256>{
+
+//TODO: carry out actual request root calculation as per eip
+    let combind=[rlp_deposit_request.clone(),rlp_deposit_request.clone()].concat();
+    let out= Some(ordered_trie_root::<KeccakHasher, _>(combind));
     out
 }
 
@@ -118,6 +168,7 @@ mod test {
             blob_gas_used: None,
             excess_blob_gas: None,
             parent_beacon_block_root: None,
+            request_root:Some(Hash256::from_str("0000000000000000000000000000000000000000000000000000000000000000").unwrap()),
         };
         let expected_rlp = "f90200a0e0a94a7a3c9617401586b1a27025d2d9671332d22d540e0af72b069170380f2aa01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d4934794ba5e000000000000000000000000000000000000a0ec3c94b18b8a1cff7d60f8d258ec723312932928626b4c9355eb4ab3568ec7f7a050f738580ed699f0469702c7ccc63ed2e51bc034be9479b7bff4e68dee84accfa029b0562f7140574dd0d50dee8a271b22e1a0a7b78fca58f7c60370d8317ba2a9b9010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000830200000188016345785d8a00008301553482079e42a0000000000000000000000000000000000000000000000000000000000000000088000000000000000082036b";
         let expected_hash =
@@ -149,6 +200,8 @@ mod test {
             blob_gas_used: None,
             excess_blob_gas: None,
             parent_beacon_block_root: None,
+            request_root:Some(Hash256::from_str("0000000000000000000000000000000000000000000000000000000000000000").unwrap()),
+
         };
         let expected_rlp = "f901fda0927ca537f06c783a3a2635b8805eef1c8c2124f7444ad4a3389898dd832f2dbea01dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d4934794ba5e000000000000000000000000000000000000a0e97859b065bd8dbbb4519c7cb935024de2484c2b7f881181b4360492f0b06b82a050f738580ed699f0469702c7ccc63ed2e51bc034be9479b7bff4e68dee84accfa029b0562f7140574dd0d50dee8a271b22e1a0a7b78fca58f7c60370d8317ba2a9b9010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800188016345785d8a00008301553482079e42a0000000000000000000000000000000000000000000000000000000000002000088000000000000000082036b";
         let expected_hash =
@@ -181,6 +234,8 @@ mod test {
             blob_gas_used: None,
             excess_blob_gas: None,
             parent_beacon_block_root: None,
+            request_root:Some(Hash256::from_str("0000000000000000000000000000000000000000000000000000000000000000").unwrap()),
+
         };
         let expected_hash =
             Hash256::from_str("6da69709cd5a34079b6604d29cd78fc01dacd7c6268980057ad92a2bede87351")
@@ -211,6 +266,8 @@ mod test {
             blob_gas_used: Some(0x0u64),
             excess_blob_gas: Some(0x0u64),
             parent_beacon_block_root: Some(Hash256::from_str("f7d327d2c04e4f12e9cdd492e53d39a1d390f8b1571e3b2a22ac6e1e170e5b1a").unwrap()),
+            request_root:Some(Hash256::from_str("0000000000000000000000000000000000000000000000000000000000000000").unwrap()),
+
         };
         let expected_hash =
             Hash256::from_str("a7448e600ead0a23d16f96aa46e8dea9eef8a7c5669a5f0a5ff32709afe9c408")
@@ -241,10 +298,14 @@ mod test {
             blob_gas_used: Some(0x0u64),
             excess_blob_gas: Some(0x0u64),
             parent_beacon_block_root: Some(Hash256::from_str("f7d327d2c04e4f12e9cdd492e53d39a1d390f8b1571e3b2a22ac6e1e170e5b1a").unwrap()),
+            request_root:Some(Hash256::from_str("0b493c22d2ad4ca76c77ae6ad916af429b42b1dc98fdcb8e5ddbd049bbc5d623").unwrap()),
+
         };
         let expected_hash =
             Hash256::from_str("a7448e600ead0a23d16f96aa46e8dea9eef8a7c5669a5f0a5ff32709afe9c408")
                 .unwrap();
+        println!("Hash:{:?}",expected_hash);
         test_rlp_encoding(&header, None, expected_hash);
     }
+   
 }
