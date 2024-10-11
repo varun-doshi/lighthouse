@@ -1,11 +1,13 @@
 use super::*;
+use alloy_primitives::keccak256;
 use alloy_rlp::RlpEncodable;
+use fixed_bytes::Hash256;
 use serde::{Deserialize, Serialize};
 use strum::EnumString;
 use superstruct::superstruct;
 use types::beacon_block_body::KzgCommitments;
 use types::blob_sidecar::BlobsList;
-use types::{DepositRequest, FixedVector, PublicKeyBytes, Signature, Unsigned, WithdrawalRequest};
+use types::{consolidation_request, withdrawal_request, DepositRequest, FixedVector, PublicKeyBytes, Signature, Unsigned, WithdrawalRequest};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -366,9 +368,20 @@ impl<E: EthSpec> From<JsonExecutionPayloadV4<E>> for ExecutionPayloadElectra<E> 
                 .map(Into::into)
                 .collect::<Vec<_>>()
                 .into(),
+            requests_root:{
+                let rr=calculate_request_root(payload.deposit_requests, payload.withdrawal_requests, payload.consolidation_requests);
+                rr
+            }
         }
     }
 }
+
+fn calculate_request_root<E: EthSpec>(
+    deposit_requests:VariableList<JsonDepositRequest, <E as EthSpec>::MaxDepositRequestsPerPayload>,withdrawal_request:VariableList<JsonWithdrawalRequest, <E as EthSpec>::MaxWithdrawalRequestsPerPayload>,consolidation_request:VariableList<JsonConsolidationRequest, <E as EthSpec>::MaxConsolidationRequestsPerPayload>)->Hash256{
+    //TODO:calcualte request_root
+    return keccak_hash::KECCAK_EMPTY_LIST_RLP.as_fixed_bytes().into();
+}
+
 
 impl<E: EthSpec> From<JsonExecutionPayload<E>> for ExecutionPayload<E> {
     fn from(json_execution_payload: JsonExecutionPayload<E>) -> Self {

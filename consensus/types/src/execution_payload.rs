@@ -102,7 +102,9 @@ pub struct ExecutionPayload<E: EthSpec> {
     pub withdrawal_requests: VariableList<WithdrawalRequest, E::MaxWithdrawalRequestsPerPayload>,
     #[superstruct(only(Electra))]
     pub consolidation_requests:
-        VariableList<ConsolidationRequest, E::MaxConsolidationRequestsPerPayload>,
+    VariableList<ConsolidationRequest, E::MaxConsolidationRequestsPerPayload>,
+    #[superstruct(only(Electra))]
+    pub requests_root: Hash256
 }
 
 impl<'a, E: EthSpec> ExecutionPayloadRef<'a, E> {
