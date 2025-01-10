@@ -208,6 +208,8 @@ pub struct ChainSpec {
     pub data_column_sidecar_subnet_count: u64,
     pub number_of_columns: usize,
     pub samples_per_slot: u64,
+    pub validator_custody_requirement: u64,
+    pub balance_per_additional_custody_subnet: u64,
 
     /*
      * Networking
@@ -830,6 +832,8 @@ impl ChainSpec {
             data_column_sidecar_subnet_count: 128,
             number_of_columns: 128,
             samples_per_slot: 8,
+            validator_custody_requirement: 8,
+            balance_per_additional_custody_subnet: 32000000000,
 
             /*
              * Network specific
@@ -1159,6 +1163,8 @@ impl ChainSpec {
             data_column_sidecar_subnet_count: 128,
             number_of_columns: 128,
             samples_per_slot: 8,
+            validator_custody_requirement: 8,
+            balance_per_additional_custody_subnet: 32000000000,
             /*
              * Network specific
              */

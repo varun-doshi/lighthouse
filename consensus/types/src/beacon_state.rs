@@ -14,6 +14,7 @@ use safe_arith::{ArithError, SafeArith};
 use serde::{Deserialize, Serialize};
 use ssz::{ssz_encode, Decode, DecodeError, Encode};
 use ssz_derive::{Decode, Encode};
+use std::cmp::{max, min};
 use std::hash::Hash;
 use std::{fmt, mem, sync::Arc};
 use superstruct::superstruct;
@@ -697,6 +698,23 @@ impl<E: EthSpec> BeaconState<E> {
             block_roots: self.block_roots().clone(),
             state_roots: self.state_roots().clone(),
         })
+    }
+
+    pub fn get_validators_custody_requirement(
+        &self,
+        validator_indices: &[u64],
+        spec: &ChainSpec,
+    ) -> Result<u64, Error> {
+        let total_node_balance: u64 = validator_indices
+            .iter()
+            .map(|&index| self.get_effective_balance(index as usize))
+            .try_fold(0u64, |acc, balance| balance.map(|b| acc + b))?;
+
+        let count = total_node_balance / spec.balance_per_additional_custody_subnet;
+        Ok(min(
+            max(count, spec.validator_custody_requirement),
+            spec.data_column_sidecar_subnet_count,
+        ))
     }
 
     /// This method ensures the state's pubkey cache is fully up-to-date before checking if the validator
